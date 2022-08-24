@@ -1,5 +1,5 @@
 
-# PowerOutageMonitor
+# Contextual Cybernation
 
 [![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/) 
 
@@ -64,7 +64,6 @@ These python scripts use a series of API requests to check if a given address (U
     ```
 
 ## Authors
-* Rohan Chopra <<rohan.chopra@computacenter.com>>
 * Jonny Le <<jonny.le@computacenter.com>>
 
 ## History
