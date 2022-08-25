@@ -174,10 +174,10 @@ def get_pge_power_status(site):
 #TODO functions for other APIs, get list of specific power providers
 
 #function to redirect which function API to call
-def get_site_status(site, provider):
+def get_site_status(site, provider=None):
     address = ", ".join((site["street"], site["city"], site["state"]))
     payload = {
-        "SiteName": site["siteName"],
+        "SiteName": site["name"],
         "Address": address,
         "Longitude": site["longitude"],
         "Latitude": site["latitude"]

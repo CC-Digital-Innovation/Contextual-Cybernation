@@ -7,14 +7,14 @@ from check_meraki import ObjectNotFound
 
 MERAKI_RE = re.compile('meraki', re.I)
 
-def check(site_name, alert_id, action_name,
+def check(site, alert_id, action_name,
             prtg_api, opsgenie_api, meraki_api, 
             snow_api, snow_filter):
     # payload to post for alert extra properties
-    details = {"SiteName":site_name}
+    details = {"SiteName": site['name']}
 
     # get gis outage status
-    gis_response = check_outage.get_site_status(site_name)
+    gis_response = check_outage.get_site_status(site)
     if gis_response:
         if "PowerStatus" in gis_response:
             if gis_response["PowerStatus"] == "Active":
@@ -29,16 +29,16 @@ def check(site_name, alert_id, action_name,
                 details["Power_ProviderStatus"] = "Down"
             else:
                 logger.error("PowerStatus '" + gis_response["PowerStatus"] + "' is not a valid response.")
-                details["Power_ProviderStatus"] = "Unknown"
+                details["Power_ProviderStatus"] = ""
         else:
             logger.error("Cannot parse outage status.")
-            details["Power_ProviderStatus"] = "Unknown"
+            details["Power_ProviderStatus"] = ""
     else:
         logger.error("Unable to retrieve outage status.")
-        details["Power_ProviderStatus"] = "Unknown"
+        details["Power_ProviderStatus"] = ""
 
     # get pi status
-    pi_response = prtg_api.get_sensors_by_name('Ping', 'PI - LTE', site_name)
+    pi_response = prtg_api.get_sensors_by_name('Ping', 'PI - LTE', site['name'])
     pi_is_up = None
     if "sensors" in pi_response:
         if len(pi_response["sensors"]) == 1:
@@ -51,15 +51,19 @@ def check(site_name, alert_id, action_name,
                 # else pi is Paused|Unknown
             else:
                 logger.error("Could not parse pi sensor status.")
+                details["PRTG_PiStatus"] = ''
         elif len(pi_response["sensors"]) > 1:
             logger.error("More than one pi sensor was found.")
+            details["PRTG_PiStatus"] = ''
         else:
             logger.error("Could not find pi sensor.")
+            details["PRTG_PiStatus"] = ''
     else:
         logger.error("Cannot parse pi sensors in payload.")
+        details["PRTG_PiStatus"] = ''
 
     # get probe status
-    probe_response = prtg_api.get_sensors_by_name('Probe Health', site_name, 'Probe Device')
+    probe_response = prtg_api.get_sensors_by_name('Probe Health', site['name'], 'Probe Device')
     probe_is_up = None
     if "sensors" in probe_response:
         if len(probe_response["sensors"]) == 1:
@@ -72,21 +76,25 @@ def check(site_name, alert_id, action_name,
                 # else pi is Paused|Unknown
             else:
                 logger.error("Could not parse probe device status.")
+                details["PRTG_ProbeStatus"] = ''
         elif len(probe_response["sensors"]) > 1:
             logger.error("More than one probe device was found.")
+            details["PRTG_ProbeStatus"] = ''
         else:
             logger.error("Could not find probe device.")
+            details["PRTG_ProbeStatus"] = ''
     else:
         logger.error("Cannot parse probe devices in payload.")
+        details["PRTG_ProbeStatus"] = ''
 
     # get meraki device and status
     meraki_is_up = None
     cis = snow_api.get_cis_filtered_by(snow_filter)
     try:
-        ap = next([ci for ci in cis if MERAKI_RE.search(ci['name'])])
+        ap = next(ci for ci in cis if MERAKI_RE.search(ci['name']))
     except StopIteration:
         logger.error('Cannot find meraki device')
-        details['Cisco_MerakiStatus'] = 'Unknown'
+        details['Cisco_MerakiStatus'] = ''
     else:
         try:
             if not ap['serial_number']:
@@ -101,13 +109,16 @@ def check(site_name, alert_id, action_name,
             else:
                 details['Cisco_MerakiStatus'] = 'Down'
         except ObjectNotFound:
-            details['Cisco_MerakiStatus'] = 'Unknown'
+            details['Cisco_MerakiStatus'] = ''
 
     # Site power output
-    if meraki_is_up or pi_is_up or probe_is_up:
+    if any((meraki_is_up, pi_is_up, probe_is_up)):
         details['Power_SitePower'] = 'Up'
     elif details['Power_ProviderStatus'] == 'Up':
-        details['Power_SitePower'] = 'Likely Down'
+        if all(status is None for status in (meraki_api, pi_is_up, probe_is_up)):
+            details['Power_SitePower'] = 'Likely Up'
+        else:
+            details['Power_SitePower'] = 'Likely Down'
     else:
         details['Power_SitePower'] = 'Down'
         # add tag for site down
@@ -120,8 +131,8 @@ def check(site_name, alert_id, action_name,
     # User input validity check
     details["PowerCheckValidation"] = ""
 
-    # update alert with site, pi, and probe statuses
-    note = f"Automated action {action_name} completed. Details of site, pi and probe statuses have been added as extra properties."
+    # update alert with collected statuses
+    note = f"Automated action {action_name} completed. Details of collected statuses have been added as extra properties."
 
     post_details_status_code = opsgenie_api.add_alert_details(alert_id, details, note=note)
     if post_details_status_code == 202:

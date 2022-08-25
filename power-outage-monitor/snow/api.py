@@ -1,5 +1,4 @@
 import pysnow
-import requests
 
 class SnowApi:
     def __init__(self, instance, username, password, limit=10000, offset=0, display_value=False):
@@ -7,18 +6,10 @@ class SnowApi:
         self.client.parameters.limit = limit
         self.client.parameters.offset = offset
         self.client.parameters.display_value = display_value
-        self.username = username
-        self.password = password
 
-    def get_record(self, link):
-        response = requests.get(link, auth=(self.username, self.password))
-        response.raise_for_status()
-        return response.json()['result']
-
-    def get_choice_labels(self, choice):
-        choice_table = self.client.resource(api_path='/table/sys_choice')
-        response = choice_table.get(query={'element': choice})
-        return sorted({category['label'] for category in response.all()})
+    def get_site_by_name(self, name):
+        location_table = self.client.resource(api_path='/table/cmn_location')
+        return location_table.get(query={'name': name}).one()
 
     def get_cis_filtered_by(self, filters):
         ci_table = self.client.resource(api_path='/table/cmdb_ci')
@@ -30,13 +21,13 @@ class SnowApi:
             return ci_table.get().all()
         # first query
         query = pysnow.QueryBuilder().field(first_k)
-        if v[0]:
+        if first_v[0]:
             query.equals(first_v[0])
         else:
             query.is_empty()
         for i in range(1, len(first_v)):
             query.OR().field(first_k)
-            if v[i]:
+            if first_v[i]:
                 query.equals(first_v[i])
             else:
                 query.is_empty()
@@ -56,8 +47,11 @@ class SnowApi:
         response = ci_table.get(query=query)
         return response.all()
 
-    def set_field(self, sys_id, name, value):
-        update = {name: value}
-        ci_table = self.client.resource(api_path='/table/cmdb_ci')
-        response = ci_table.update(query={'sys_id': sys_id}, payload=update)
-        return response[name] == value
+    def set_long_lat(self, sys_id, long, lat):
+        update = {
+            'longitude': long,
+            'latitude': lat
+        }
+        ci_table = self.client.resource(api_path='/table/cmn_location')
+        location = ci_table.update(query={'sys_id': sys_id}, payload=update)
+        return location

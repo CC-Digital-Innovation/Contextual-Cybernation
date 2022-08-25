@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import FastAPI, HTTPException
 from loguru import logger
 from prtg import PrtgApi
@@ -7,9 +5,9 @@ from prtg import PrtgApi
 import check_all
 import geocode
 from config import config
+from check_meraki import MerakiOrgApi
 from opsgenie import OpsgenieApi
 from snow import SnowApi
-from sites import controller
 
 TOKEN = config["web"]["token"]
 try:
@@ -22,6 +20,7 @@ except KeyError:
     OPSGENIE_API = OpsgenieApi(config['opsgenie']['api_key'])
 SNOW_API = SnowApi(config['snow']['instance'], config['snow']['username'], config['snow']['password'])
 SNOW_FILTER = config['snow']['filter']
+# MERAKI_API = MerakiOrgApi(org_id=config['meraki']['org_id'], api_key=config['meraki']['api_key'])
 
 app = FastAPI()
 
@@ -29,40 +28,15 @@ app = FastAPI()
 def check_site(siteName: str, alertId: str, actionName: str, token: str):
     if token != TOKEN:
         raise HTTPException(status_code=401, detail='Unauthorized request.')
-    site = controller.get_site(siteName)
+    site = SNOW_API.get_site_by_name(siteName)
     if not site:
         logger.info("Could not find site '" + siteName + "'")
         raise HTTPException(status_code=404, detail="Could not find site '" + siteName + "'")
+    elif not site['longitude'] or not site['latitude']:
+        logger.info('Location is missing long/lat values. Collecting values...')
+        address = ', '.join((site['street'], site['city'], site['state']))
+        address = ' '.join((address, site['zip']))
+        long, lat = geocode.get_long_lat(address)
+        site = SNOW_API.set_long_lat(site['sys_id'], long, lat)
     logger.info("Found site '" + siteName + ".' Getting power status...")
-    return check_all.check(siteName, alertId, actionName, PRTG_API, OPSGENIE_API, SNOW_API, SNOW_FILTER)
-
-
-@app.get("/sites/{siteName}")
-def get_site(siteName: str, token: str):
-    if token != TOKEN:
-        raise HTTPException(status_code=401, detail='Unauthorized request.')
-    site = controller.get_site(siteName)
-    if site:
-        logger.info("Found site '" + siteName + ".' Sending response...")
-        return site
-    logger.info("Could not find site '" + siteName + "'")
-    raise HTTPException(status_code=404, detail="Could not find site '" + siteName + "'")
-
-
-@app.get("/sites")
-def get_all_sites(token: str):
-    if token != TOKEN:
-        raise HTTPException(status_code=401, detail='Unauthorized request.')
-    return controller.get_all()
-
-
-@app.post("/sites")
-def add_site(siteName: str, street: str, city: str, state: str, token: str, longitude: Optional[str] = None, latitude: Optional[str] = None):
-    if token != TOKEN:
-        raise HTTPException(status_code=401, detail='Unauthorized request.')
-    if not longitude or not latitude:
-        longitude, latitude = geocode.get_long_lat(",".join((street, city, state)))
-    if longitude and latitude:
-        return controller.add_site(siteName, street, city, state, longitude, latitude)
-    logger.error("Could not get longitude and latitude, cannot add to db.")
-    raise HTTPException(status_code=422, detail="Could not find longitude or latitude based on address. Check street, city, and state inputs.")
+    return check_all.check(site, alertId, actionName, PRTG_API, OPSGENIE_API, None, SNOW_API, SNOW_FILTER)
