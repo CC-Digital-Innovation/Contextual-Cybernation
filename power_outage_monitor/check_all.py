@@ -3,7 +3,7 @@ import re
 from loguru import logger
 
 import check_outage
-from meraki.exceptions import ObjectNotFound
+from meraki_api.exceptions import ObjectNotFound
 
 MERAKI_RE = re.compile('meraki', re.I)
 
@@ -112,10 +112,11 @@ def check(site, alert_id, action_name,
             details['Cisco_MerakiStatus'] = ''
 
     # Site power output
+    logger.debug(f'Meraki: {str(meraki_is_up)} Pi: {str(pi_is_up)} Probe: {str(probe_is_up)}')
     if any((meraki_is_up, pi_is_up, probe_is_up)):
         details['Power_SitePower'] = 'Up'
     elif details['Power_ProviderStatus'] == 'Up':
-        if all(status is None for status in (meraki_api, pi_is_up, probe_is_up)):
+        if all(status is None for status in (meraki_is_up, pi_is_up, probe_is_up)):
             details['Power_SitePower'] = 'Likely Up'
         else:
             details['Power_SitePower'] = 'Likely Down'
