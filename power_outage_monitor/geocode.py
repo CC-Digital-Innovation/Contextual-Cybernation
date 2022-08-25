@@ -37,7 +37,7 @@ def get_long_lat(address):
 
     if len(jsonResponse["candidates"]) > 1:
         if jsonResponse["candidates"][0]["score"] >= config["geocode"]["minScore"]:
-            logger.info("Address found: " + jsonResponse["candidates"][0]["address"] + " | Score: " + str(jsonResponse["candidates"][0]["score"]))
+            logger.debug("Address found: " + jsonResponse["candidates"][0]["address"] + " | Score: " + str(jsonResponse["candidates"][0]["score"]))
             point = jsonResponse["candidates"][0]["location"]
             return point["x"], point["y"]
         logger.error("Address '" + address + "' is not specific enough.")
@@ -46,6 +46,6 @@ def get_long_lat(address):
         logger.error("Could not find address '" + address + "'.")
         return None , None
     else:
-        logger.info("Address found: " + jsonResponse["candidates"][0]["address"] + " | Score: " + str(jsonResponse["candidates"][0]["score"]))
+        logger.debug("Address found: " + jsonResponse["candidates"][0]["address"] + " | Score: " + str(jsonResponse["candidates"][0]["score"]))
         point = jsonResponse["candidates"][0]["location"]
         return point["x"], point["y"]

@@ -1,0 +1,78 @@
+web:
+  token: mysecretkey
+  host: '0.0.0.0'
+  port: 8080
+  # only edit proxy path if api is behind a proxy
+  proxy: /
+  # fastapi log level (separate from application log level)
+  log_level: info
+logger:
+  console:
+    log_level: info
+  # file:
+  #   supports name substitution with {}, more at: https://loguru.readthedocs.io/en/stable/api/logger.html
+  #   name:
+  #   log_level: info
+  # syslog:
+  #   host: syslog.example.com
+  #   port: 514
+  #   log_level: info
+gis-api:
+  headers: null
+  params:
+    # radius distance to capture outage
+    distance: '1000'
+    # response format
+    f: json
+    # precision (decimal places) of RETURNED geometry
+    geometryPrecision: '7'
+    # returned fields
+    outFields: OBJECTID, UtilityCompany, StartDate, EstimatedRestoreDate, Cause, ImpactedCustomers, County, OutageStatus, OutageType, GlobalID, IncidentId
+    # output spatial relation to return longitude, latitude values
+    outSR: '4326'
+    # units for distance parameter, other options: esriSRUnit_Meter | esriSRUnit_StatuteMile | esriSRUnit_Foot | esriSRUnit_Kilometer | esriSRUnit_NauticalMile | esriSRUnit_USNauticalMile
+    unit: esriSRUnit_Meter
+    where: 1=1
+pge-api:
+  headers: null
+  params:
+    regionType: city
+    expand: 'true'
+geocode:
+  # more at: https://developers.arcgis.com/rest/geocode/api-reference/geocoding-find-address-candidates.htm
+  headers: null
+  params:
+    f: json
+    outFields: location
+  # minimum accuracy of address (inclusive)
+  minScore: 97
+sce-api:
+  # wait time, in seconds, for HTML elements to appear
+  maxWaitTime: 5
+date-time:
+  # timezone to return, find more at: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
+  timezone: America/Los_Angeles
+  timeFormat: '%m/%d/%Y %I:%M:%S %p %Z'
+prtg:
+  url: https://example.prtg.com
+  username: user
+  password: passwordorpasshash
+  is_passhash: false
+opsgenie:
+  api_key: mysecretkey
+  # id | tiny | alias
+  identifier_type: id
+snow:
+  instance: servicenow
+  username: user
+  password: mysecretpassword
+  # field values to filter all devices pulled from SNOW
+  filter:
+    install_status:
+      - '1'
+    sys_class_name:
+      - cmdb_ci_wap_network
+meraki:
+  api_key: mysecretkey
+  org_id: 1234567890
+  org_name: Meraki

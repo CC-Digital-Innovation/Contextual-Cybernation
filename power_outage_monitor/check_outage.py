@@ -80,9 +80,9 @@ def get_gis_power_status(site):
     if not statuses:
         return {"PowerStatus": "Active"}
     elif len(statuses) > 1:
-        logger.info("More than one outage found.")
+        logger.warning("More than one outage found.")
         for outage in statuses:
-            logger.info(json.dumps(outage, indent=4, sort_keys=True))
+            logger.warning(json.dumps(outage, indent=4, sort_keys=True))
 
     site_status = statuses[0]["attributes"]
     
@@ -97,81 +97,6 @@ def get_gis_power_status(site):
     del site_status["OutageStatus"]
     site_status["PowerStatus"] = "Inactive"
     return site_status
-        
-
-def get_pge_power_status(site):
-    """checks the power status of a site using PG&E's API
-
-    Parameters
-    ----------
-    site : SiteData
-
-    Returns
-    -------
-    dict
-        A dictionary with outage status and outage information if it is active or
-        simply site information if it is restored
-
-    None
-        If missing keys, missing key values, or incorrect longitude and latitude values.
-    """
-
-    # check argument
-    try:
-        if not site["city"]:
-            logger.error("Missing region value.")
-            return None
-        if not site["longitude"]:
-            logger.error("Missing longitude value.")
-            return None
-        if not site["latitude"]:
-            logger.error("Missing latitude value.")
-            return None
-    except KeyError as err:
-        logger.exception("Argument is missing required key: " + err.args[0])
-        return None
-
-    url = "https://apim.cloud.pge.com/cocoutage/outages/getOutagesRegions"
-    headers = deepcopy(config["pge-api"]["headers"])
-    params = deepcopy(config["pge-api"]["params"])
-
-    response = requests.get(url, headers=headers, params=params)
-
-    response_content = json.loads(response.content)
-
-    # get list of outages based on region
-    outage_regions = response_content['outagesRegions']
-
-    for outage_region in outage_regions:
-        # parse for matching region
-        if site['city'] == outage_region['regionName']:
-            for outage in outage_region['outages']:
-                # parse for matching longitude and latitude
-                # note that PG&E uses (longitude, latitude) vs. Google Map's (latitude, longitude)
-                if site['longitude'] == outage['longitude'] and site['latitude'] == outage['latitude']:
-                    # convert epoch to formatted datetime
-                    if "autoEtor" in outage:
-                        if outage["autoEtor"]:
-                            outage["autoEtor"] = convert_epoch_to_datetime(int(outage["autoEtor"])).strftime(config["date-time"]["timeFormat"])
-                    if "crewEta" in outage:
-                        if outage["crewEta"]:
-                            outage["crewEta"] = convert_epoch_to_datetime(int(outage["crewEta"])).strftime(config["date-time"]["timeFormat"])
-                    if "currentEtor" in outage:
-                        if outage["currentEtor"]:
-                            outage["currentEtor"] = convert_epoch_to_datetime(int(outage["currentEtor"])).strftime(config["date-time"]["timeFormat"])
-                    if "lastUpdateTime" in outage:
-                        if outage["lastUpdateTime"]:
-                            outage["lastUpdateTime"] = convert_epoch_to_datetime(int(outage["lastUpdateTime"])).strftime(config["date-time"]["timeFormat"])
-                    if "outageStartTime" in outage:
-                        if outage["outageStartTime"]:
-                            outage["outageStartTime"] = convert_epoch_to_datetime(int(outage["outageStartTime"])).strftime(config["date-time"]["timeFormat"])
-                    del outage["outageStatus"]
-                    outage["PowerStatus"] = "Inactive"
-                    return outage
-    return {"PowerStatus": "Active"}
-
-
-#TODO functions for other APIs, get list of specific power providers
 
 #function to redirect which function API to call
 def get_site_status(site, provider=None):
@@ -182,22 +107,7 @@ def get_site_status(site, provider=None):
         "Longitude": site["longitude"],
         "Latitude": site["latitude"]
     }
-    if provider:
-        if provider.lower() == "pge":
-            logger.info("PGE API USED")
-            payload.update(get_pge_power_status(site))
-            payload["Time"] = datetime.now(pytz.timezone(config["date-time"]["timezone"])).strftime(config["date-time"]["timeFormat"])
-            logger.info(json.dumps(payload, indent=4, sort_keys=True))
-            return payload
-        if provider.lower() == "gis":
-            logger.info("GIS API USED")
-            payload.update(get_gis_power_status(site))
-            payload["Time"] = datetime.now(pytz.timezone(config["date-time"]["timezone"])).strftime(config["date-time"]["timeFormat"])
-            logger.info(json.dumps(payload, indent=4, sort_keys=True))
-            return payload
-    else:
-        logger.info("GIS API USED")
-        payload.update(get_gis_power_status(site))
-        payload["Time"] = datetime.now(pytz.timezone(config["date-time"]["timezone"])).strftime(config["date-time"]["timeFormat"])
-        logger.info(json.dumps(payload, indent=4, sort_keys=True))
-        return payload
+    payload.update(get_gis_power_status(site))
+    payload["Time"] = datetime.now(pytz.timezone(config["date-time"]["timezone"])).strftime(config["date-time"]["timeFormat"])
+    logger.debug(json.dumps(payload, indent=4, sort_keys=True))
+    return payload

@@ -1,7 +1,6 @@
+from pathlib import PurePath
+
 import yaml
 
-config = {}
-
-def set_config(file):
-    with open(file) as fp:
-        config.update(yaml.safe_load(fp))
+with open(PurePath(__file__).with_name('config.yaml')) as fp:
+    config = yaml.safe_load(fp)
