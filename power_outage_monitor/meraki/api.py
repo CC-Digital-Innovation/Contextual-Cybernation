@@ -1,7 +1,6 @@
 import meraki
 
-class ObjectNotFound(Exception):
-    pass
+from .exceptions import ObjectNotFound
 
 class MerakiOrgApi:
     def __init__(self, org_name=None, org_id=None, api_key=None):
