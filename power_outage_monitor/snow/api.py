@@ -55,3 +55,18 @@ class SnowApi:
         ci_table = self.client.resource(api_path='/table/cmn_location')
         location = ci_table.update(query={'sys_id': sys_id}, payload=update)
         return location
+
+    def create_incident(self, customer, caller, opened_by, message, description, impact):
+        incident_table = self.client.resource(api_path='/table/incident')
+        new_incident = {
+            'company': customer,
+            'u_customer': customer,
+            'caller_id': caller,
+            'opened_by': opened_by,
+            'short_description': message,
+            'description': description,
+            'impact': impact,
+            'urgency': impact
+        }
+        response = incident_table.create(payload=new_incident)
+        return response

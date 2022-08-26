@@ -7,9 +7,11 @@ from meraki_api.exceptions import ObjectNotFound
 
 MERAKI_RE = re.compile('meraki', re.I)
 
-def check(site, alert_id, action_name,
-            prtg_api, opsgenie_api, meraki_api, 
-            snow_api, snow_filter):
+def check(site,
+        prtg_api,
+        meraki_api,
+        snow_api,
+        snow_filter):
     # payload to post for alert extra properties
     details = {"SiteName": site['name']}
 
@@ -122,23 +124,8 @@ def check(site, alert_id, action_name,
             details['Power_SitePower'] = 'Likely Down'
     else:
         details['Power_SitePower'] = 'Down'
-        # add tag for site down
-        add_tag_status_code = opsgenie_api.add_alert_tags(alert_id, ["SitePowerDown"], note=f"Automated action {action_name} detected site power is down with high confidence. Tag has been added.")
-        if add_tag_status_code == 202:
-            logger.info(f"Successfully added tags to alert {alert_id}.")
-        else:
-            logger.error(f"Could not add tags to alert {alert_id}")
 
     # User input validity check
     details["PowerCheckValidation"] = ""
-
-    # update alert with collected statuses
-    note = f"Automated action {action_name} completed. Details of collected statuses have been added as extra properties."
-
-    post_details_status_code = opsgenie_api.add_alert_details(alert_id, details, note=note)
-    if post_details_status_code == 202:
-        logger.info(f"Successfully posted details to alert {alert_id}.")
-    else:
-        logger.error(f"Could not post details to alert {alert_id}")
 
     return details
