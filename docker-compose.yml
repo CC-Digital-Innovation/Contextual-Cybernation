@@ -1,18 +1,14 @@
 version: '2'
 services:
-  power-outage-monitor:
+  pom:
     restart: always
-    image: ccfs/power-outage-monitor
+    image: ccfs/contextual-cybernation
+    build: .
     labels:
-      # enable for docker and watchtower workflow
-      # com.centurylinklabs.watchtower.enable: true
-      # edit to correct hostname
-      caddy: api.example.com
+      caddy: power-api.quokka.ninja
       caddy.reverse_proxy: "{{upstreams 80}}"
     networks:
      - caddy
-    volumes:
-     - ./power-outage-monitor/sites:/app/sites
 networks:
   caddy:
     external: true
