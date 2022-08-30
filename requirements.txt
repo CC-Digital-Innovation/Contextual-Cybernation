@@ -31,6 +31,7 @@ six==1.16.0
 sniffio==1.2.0
 starlette==0.19.1
 tenacity==8.0.1
+tweepy==4.10.1
 typing_extensions==4.3.0
 urllib3==1.26.12
 uvicorn==0.18.3

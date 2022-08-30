@@ -1,6 +1,8 @@
 import json
 import secrets
+import textwrap
 
+import tweepy
 from fastapi import Depends, FastAPI, HTTPException, Security, status, Query
 from fastapi.security import APIKeyHeader
 from loguru import logger
@@ -16,12 +18,34 @@ from pysnow.exceptions import NoResults
 from snow import SnowApi
 
 TOKEN = config['web']['token']
-PRTG_API = PrtgApi(config['prtg']['url'], config['prtg']['username'], config['prtg']['password'], is_passhash=config['prtg'].get('is_passhash', False))
+
+PRTG_API = PrtgApi(config['prtg']['url'], 
+                   config['prtg']['username'], 
+                   config['prtg']['password'], 
+                   is_passhash=config['prtg'].get('is_passhash', False))
+
 OPSGENIE_API = OpsgenieApi(config['opsgenie']['api_key'])
-SNOW_API = SnowApi(config['snow']['instance'], config['snow']['username'], config['snow']['password'])
+
+SNOW_API = SnowApi(config['snow']['instance'], 
+                   config['snow']['username'], 
+                   config['snow']['password'])
+
 SNOW_FILTER = config['snow']['filter']
-MERAKI_API = MerakiOrgApi(api_key=config['meraki']['api_key'], org_id=config['meraki'].get('org_id', None), org_name=config['meraki'].get('org_name', None))
-NETCLOUD_API = NetCloudApi(config['netcloud']['url'], config['netcloud']['cp_id'], config['netcloud']['cp_key'], config['netcloud']['ecm_id'], config['netcloud']['ecm_key'])
+
+MERAKI_API = MerakiOrgApi(api_key=config['meraki']['api_key'], 
+                          org_id=config['meraki'].get('org_id', None), 
+                          org_name=config['meraki'].get('org_name', None))
+
+NETCLOUD_API = NetCloudApi(config['netcloud']['url'], 
+                           config['netcloud']['cp_id'], 
+                           config['netcloud']['cp_key'], 
+                           config['netcloud']['ecm_id'], 
+                           config['netcloud']['ecm_key'])
+
+TWITTER_CLIENT = tweepy.Client(consumer_key=config['twitter']['conskey'],
+                               consumer_secret=config['twitter']['conssec'],
+                               access_token=config['twitter']['acctoken'],
+                               access_token_secret=config['twitter']['tokensec'])
 
 app = FastAPI()
 
@@ -103,6 +127,14 @@ def webhook_ops(opsgenie_req: OpsgenieRequest, company: str, caller: str, opened
                     f'[ADARCA] Power outage detected for site {site_name}',
                     opsgenie_req.alert.description,
                     impact)
+
+            # notify power outage to external platform
+            logger.info('Tweeting outage details...')
+            TWITTER_CLIENT.create_tweet(text=textwrap.dedent(f'''\
+                Start Date: {details['Power_StartDate']}
+                Type: {details['Power_OutageType']}
+                Cause: {details['Power_Cause']}
+                Estimated Restore Date: {details['Power_EstimatedRestoreDate']}'''))
         else:
             # forward opsgenie alert to snow incident
             SNOW_API.create_incident(company, caller, opened_by,
