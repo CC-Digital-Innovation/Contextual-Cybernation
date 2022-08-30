@@ -10,6 +10,7 @@ import check_all
 import geocode
 from config import config
 from meraki_api import MerakiOrgApi
+from netcloud import NetCloudApi
 from opsgenie import OpsgenieApi, OpsgenieRequest
 from pysnow.exceptions import NoResults
 from snow import SnowApi
@@ -20,6 +21,7 @@ OPSGENIE_API = OpsgenieApi(config['opsgenie']['api_key'])
 SNOW_API = SnowApi(config['snow']['instance'], config['snow']['username'], config['snow']['password'])
 SNOW_FILTER = config['snow']['filter']
 MERAKI_API = MerakiOrgApi(api_key=config['meraki']['api_key'], org_id=config['meraki'].get('org_id', None), org_name=config['meraki'].get('org_name', None))
+NETCLOUD_API = NetCloudApi(config['netcloud']['url'], config['netcloud']['cp_id'], config['netcloud']['cp_key'], config['netcloud']['ecm_id'], config['netcloud']['ecm_key'])
 
 app = FastAPI()
 
@@ -50,7 +52,7 @@ def _check_site(site_name):
         logger.info('Updating record on SNOW CMDB...')
         site = SNOW_API.set_long_lat(site['sys_id'], long, lat)
     logger.info('Found site ' + site_name + '. Getting power status...')
-    return check_all.check(site, PRTG_API, MERAKI_API, SNOW_API, SNOW_FILTER)
+    return check_all.check(site, PRTG_API, MERAKI_API, SNOW_API, SNOW_FILTER, NETCLOUD_API)
 
 @app.get('/checkSite', dependencies=[Depends(authorize)])
 def check_site(site_name: str):

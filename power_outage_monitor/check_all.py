@@ -12,7 +12,8 @@ def check(site,
         prtg_api,
         meraki_api,
         snow_api,
-        snow_filter):
+        snow_filter,
+        netcloud_api):
     # payload to post for alert extra properties
     details = {'SiteName': site['name']}
 
@@ -41,7 +42,7 @@ def check(site,
         logger.error('Unable to retrieve outage status.')
 
     # get pi status
-    logger.info('Checking status of PI device at site...')
+    logger.info('Checking status of PI device...')
     pi_response = prtg_api.get_sensors_by_name('Ping', 'PI - LTE', site['name'])
     pi_is_up = None
     details['PRTG_PiStatus'] = ''
@@ -66,7 +67,7 @@ def check(site,
         logger.error('Cannot parse pi sensors in payload.')
 
     # get probe status
-    logger.info('Checking status of Probe device at site...')
+    logger.info('Checking status of Probe device...')
     probe_response = prtg_api.get_sensors_by_name('Probe Health', site['name'], 'Probe Device')
     probe_is_up = None
     details['PRTG_ProbeStatus'] = ''
@@ -91,7 +92,7 @@ def check(site,
         logger.error('Cannot parse probe devices in payload.')
 
     # get meraki device and status
-    logger.info('Checking status of Meraki device at site...')
+    logger.info('Checking status of Meraki device...')
     cis = snow_api.get_cis_filtered_by(snow_filter)
     meraki_is_up = None
     try:
@@ -118,13 +119,23 @@ def check(site,
                 logger.info('Meraki device is down.')
                 details['Cisco_MerakiStatus'] = 'Down'
 
+    # get cradlepoint status
+    logger.info('Checking status of Cradlepoint device...')
+    cradle_is_up = netcloud_api.get_router_status_by_name(site)
+    if cradle_is_up:
+        logger.info('Router is up.')
+        details['Cradlepoint_RouterStatus'] = 'Up'
+    else:
+        logger.info('Router is down.')
+        details['Cradlepoint_RouterStatus'] = 'Down'
+
     # Site power output
     logger.info('Determining if power outage based on collected data...')
-    if any((meraki_is_up, pi_is_up, probe_is_up)):
+    if any((meraki_is_up, pi_is_up, probe_is_up, cradle_is_up)):
         logger.info('At least one sensor/device is up: not a power outage.')
         details['Power_SitePower'] = 'Up'
     elif details['Power_ProviderStatus'] == 'Up':
-        if all(status is None for status in (meraki_is_up, pi_is_up, probe_is_up)):
+        if all(status is None for status in (meraki_is_up, pi_is_up, probe_is_up, cradle_is_up)):
             logger.info('Could not retrieve some data but provider suggests no outage.')
             details['Power_SitePower'] = 'Likely Up'
         else:
