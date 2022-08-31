@@ -44,7 +44,7 @@ def check(site,
 
     # get pi status
     logger.info('Checking status of PI device...')
-    pi_response = prtg_api.get_sensors_by_name('Ping', 'PI - LTE', site['name'])
+    pi_response = prtg_api.get_sensors_by_name('Ping', site['name'], 'PI - LTE')
     pi_is_up = None
     details['PRTG_PiStatus'] = ''
     if 'sensors' in pi_response:
