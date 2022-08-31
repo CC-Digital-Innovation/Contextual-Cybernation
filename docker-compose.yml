@@ -1,7 +1,6 @@
-version: '2'
+version: '3.8'
 services:
-  pom:
-    restart: always
+  adarca:
     image: ccfs/contextual-cybernation
     build: .
     labels:
