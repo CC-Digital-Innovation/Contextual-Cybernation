@@ -25,6 +25,14 @@ PRTG_API = PrtgApi(config['prtg']['url'],
                    is_passhash=config['prtg'].get('is_passhash', False))
 
 OPSGENIE_API = OpsgenieApi(config['opsgenie']['api_key'])
+OPS_TO_SNOW_SEVERITY = {
+    5: 3,
+    4: 3,
+    3: 2,
+    2: 1,
+    1: 0,
+    0: 0
+}
 
 SNOW_API = SnowApi(config['snow']['instance'], 
                    config['snow']['username'], 
@@ -121,7 +129,8 @@ def webhook_ops(opsgenie_req: OpsgenieRequest):
 
         opsgenie_req.alert.description = '\n'.join(('Power Check Details', extra_str, '', 'Alert Details', opsgenie_req.alert.description))
     finally:
-        impact = int(opsgenie_req.alert.priority[1:]) - 1
+        ops_impact = int(opsgenie_req.alert.priority[1:]) - 1
+        impact = OPS_TO_SNOW_SEVERITY[ops_impact]
         logger.info('Forwarding alert to ITSM...')
         if create_outage_incident:
             # create power outage incident
