@@ -6,6 +6,7 @@ class SnowApi:
         self.client.parameters.limit = limit
         self.client.parameters.offset = offset
         self.client.parameters.display_value = display_value
+        self.instance = instance
 
     def get_site_by_name(self, name):
         location_table = self.client.resource(api_path='/table/cmn_location')
@@ -67,7 +68,11 @@ class SnowApi:
             'description': description,
             'impact': impact,
             'urgency': impact,
+            'severity': impact,
             'location': location
         }
         response = incident_table.create(payload=new_incident)
-        return response
+        return response.one()
+
+    def get_incident_link(self, sys_id):
+        return f'https://{self.instance}.service-now.com/incident?sys_id={sys_id}'

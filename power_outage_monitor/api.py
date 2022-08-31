@@ -125,12 +125,11 @@ def webhook_ops(opsgenie_req: OpsgenieRequest):
         logger.info('Forwarding alert to ITSM...')
         if create_outage_incident:
             # create power outage incident
-            SNOW_API.create_incident(SNOW_COMPANY, SNOW_CALLER, SNOW_OPENED_BY,
+            incident = SNOW_API.create_incident(SNOW_COMPANY, SNOW_CALLER, SNOW_OPENED_BY,
                     f'[ADARCA] Power outage detected for site {site_name}',
                     opsgenie_req.alert.description,
                     impact,
                     site_name)
-
             # notify power outage to external platform
             logger.info('Tweeting outage details...')
             TWITTER_CLIENT.create_tweet(text=textwrap.dedent(f'''\
@@ -140,11 +139,12 @@ def webhook_ops(opsgenie_req: OpsgenieRequest):
                 Estimated Restore Date: {details['Power_EstimatedRestoreDate']}'''))
         else:
             # forward opsgenie alert to snow incident
-            SNOW_API.create_incident(SNOW_COMPANY, SNOW_CALLER, SNOW_OPENED_BY,
+            incident = SNOW_API.create_incident(SNOW_COMPANY, SNOW_CALLER, SNOW_OPENED_BY,
                     opsgenie_req.alert.message,
                     opsgenie_req.alert.description,
                     impact,
                     site_name)
+        logger.info(f'Incident created at: {SNOW_API.get_incident_link(incident["sys_id"])}')
         logger.info('Closing alert on Opsgenie...')
         OPSGENIE_API.close_alert(alert_id, source='python opsgenie-sdk/2.1.5', note='Alert closed by ADARCA.')
         logger.info('ADARCA request complete!')
