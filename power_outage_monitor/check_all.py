@@ -2,6 +2,7 @@ import json
 import re
 
 from loguru import logger
+from requests.exceptions import HTTPError
 
 import check_outage
 from meraki_api.exceptions import ObjectNotFound
@@ -25,7 +26,7 @@ def check(site,
     if gis_response:
         if 'PowerStatus' in gis_response:
             if gis_response['PowerStatus'] == 'Active':
-                logger.info('No outages found near the site!=.')
+                logger.info('No outages found near the site!')
                 details['Power_ProviderStatus'] = 'Up'
             elif gis_response['PowerStatus'] == 'Inactive':
                 logger.info('Outage found near the site. Adding outage details...')
@@ -121,13 +122,19 @@ def check(site,
 
     # get cradlepoint status
     logger.info('Checking status of Cradlepoint device...')
-    cradle_is_up = netcloud_api.get_router_status_by_name(site)
-    if cradle_is_up:
-        logger.info('Router is up.')
-        details['Cradlepoint_RouterStatus'] = 'Up'
+    details['Cradlepoint_RouterStatus'] = ''
+    cradle_is_up = None
+    try:
+        cradle_is_up = netcloud_api.get_router_status_by_name(site['name'])
+    except HTTPError as e:
+        logger.error(str(e))
     else:
-        logger.info('Router is down.')
-        details['Cradlepoint_RouterStatus'] = 'Down'
+        if cradle_is_up:
+            logger.info('Router is up.')
+            details['Cradlepoint_RouterStatus'] = 'Up'
+        else:
+            logger.info('Router is down.')
+            details['Cradlepoint_RouterStatus'] = 'Down'
 
     # Site power output
     logger.info('Determining if power outage based on collected data...')
