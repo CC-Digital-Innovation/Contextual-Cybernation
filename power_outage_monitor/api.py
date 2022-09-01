@@ -93,7 +93,7 @@ def _check_site_outage(site_name):
     return checks.check_outage(site, PRTG_API, MERAKI_API, SNOW_API, NETCLOUD_API, SIM_CISCO_SUPPORT_API)
 
 def _check_warranty(name, site_name):
-    filter = {'name': name, 'location':site_name}
+    filter = {'name': [name], 'location.name': [site_name]}
     try:
         ci = SNOW_API.get_cis_filtered_by(filter)[0]
     except IndexError as e:
