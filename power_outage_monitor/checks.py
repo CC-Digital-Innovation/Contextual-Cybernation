@@ -1,26 +1,26 @@
 import json
 import re
+from datetime import date, datetime, timezone
 
 from loguru import logger
 from requests.exceptions import HTTPError
 
-import check_outage
-from meraki_api.exceptions import ObjectNotFound
+import provider
+from cisco.meraki_api.exceptions import ObjectNotFound
 
 MERAKI_RE = re.compile('meraki', re.I)
 
-def check(site,
+def check_outage(site,
         prtg_api,
         meraki_api,
         snow_api,
-        snow_filter,
         netcloud_api):
     # payload to post for alert extra properties
     details = {'SiteName': site['name']}
 
     # get gis outage status
     logger.info('Checking gis dataset for outages...')
-    gis_response = check_outage.get_site_status(site)
+    gis_response = provider.get_site_status(site)
     logger.debug(json.dumps(gis_response, indent=2, sort_keys=True))
     details['Power_ProviderStatus'] = ''
     if gis_response:
@@ -94,7 +94,7 @@ def check(site,
 
     # get meraki device and status
     logger.info('Checking status of Meraki device...')
-    cis = snow_api.get_cis_filtered_by(snow_filter)
+    cis = snow_api.get_cis_filtered_by({'sys_class_name': 'cmdb_ci_wap_network'})
     meraki_is_up = None
     try:
         ap = next(ci for ci in cis if MERAKI_RE.search(ci['name']))
@@ -153,3 +153,26 @@ def check(site,
         details['Power_SitePower'] = 'Down'
 
     return details
+
+def check_warranty(ci, support_api, snow_api):
+    logger.info(f'Checking warranty information for configuration item {ci["name"]}.')
+    if snow_api.get_record(ci['manufacturer']['link'])['name'] != 'Cisco':
+        logger.info('Unsupported manufacturer for checking warranty.')
+        return
+    serial_number = ci['serial_number']
+    if not serial_number:
+        logger.warning(f'Configuration item {ci["name"]} is missing serial number.')
+        return
+    coverage_summary = support_api.get_coverage_summary_by_sn(ci['serial_number'])[0]
+    if not coverage_summary['warranty_end_date']:
+        logger.warning(f'Cannot retrieve warranty information for configuration item {ci["name"]}.')
+        return
+    if coverage_summary['warranty_end_date'] != ci['warranty_expiration']:
+        logger.info('Warranty dates do not match. Updating ITSM with latest warranty...')
+        snow_api.set_field(ci['sys_id'], 'warranty_expiration', coverage_summary['warranty_end_date'])
+    expiration_date = date.fromisoformat(coverage_summary['warranty_end_date'])
+    today = datetime.now(timezone.utc).date()
+    if expiration_date <= today:
+        logger.info(f'Discovered warranty is expired for configuration item {ci["name"]}.')
+        diff = (today - expiration_date).days
+        return f'Warranty expired {diff} day(s) ago on {expiration_date} for {ci["name"]}.'

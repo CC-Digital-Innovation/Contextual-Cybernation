@@ -1,4 +1,5 @@
 import pysnow
+import requests
 
 class SnowApi:
     def __init__(self, instance, username, password, limit=10000, offset=0, display_value=False):
@@ -7,6 +8,8 @@ class SnowApi:
         self.client.parameters.offset = offset
         self.client.parameters.display_value = display_value
         self.instance = instance
+        self.username = username
+        self.password = password
 
     def get_site_by_name(self, name):
         location_table = self.client.resource(api_path='/table/cmn_location')
@@ -57,7 +60,7 @@ class SnowApi:
         location = ci_table.update(query={'sys_id': sys_id}, payload=update)
         return location
 
-    def create_incident(self, customer, caller, opened_by, message, description, impact, location):
+    def create_incident(self, customer, caller, opened_by, message, description, impact, location, ci=''):
         incident_table = self.client.resource(api_path='/table/incident')
         new_incident = {
             'company': customer,
@@ -69,10 +72,22 @@ class SnowApi:
             'impact': impact,
             'urgency': impact,
             'severity': impact,
-            'location': location
+            'location': location,
+            'cmdb_ci': ci
         }
         response = incident_table.create(payload=new_incident)
         return response.one()
+
+    def set_field(self, sys_id, name, value):
+        update = {name: value}
+        ci_table = self.client.resource(api_path='/table/cmdb_ci')
+        response = ci_table.update(query={'sys_id': sys_id}, payload=update)
+        return response[name] == value
+
+    def get_record(self, link):
+        response = requests.get(link, auth=(self.username, self.password))
+        response.raise_for_status()
+        return response.json()['result']
 
     def get_incident_link(self, sys_id):
         return f'https://{self.instance}.service-now.com/incident?sys_id={sys_id}'

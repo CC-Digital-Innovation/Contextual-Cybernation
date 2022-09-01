@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 class ExtraProperties(BaseModel):
     sensor_id: str = Field(alias='sensorId')
     group: str
+    device: str
 
 class ActionSource(BaseModel):
     type: str
