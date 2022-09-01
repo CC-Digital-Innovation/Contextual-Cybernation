@@ -16,10 +16,6 @@ class Parameter(BaseModel):
     type: str
     value: str
 
-class Action(BaseModel):
-    name: str
-    parameters: List[Parameter]
-
 class Alert(BaseModel):
     count: str
     description: str
@@ -31,7 +27,7 @@ class Alert(BaseModel):
     tiny_id: str = Field(alias='tinyId')
     alias: str
     id: str
-    actions: List[Action] = []
+    actions: List[str] = []
     entity: str
     status: str
 
