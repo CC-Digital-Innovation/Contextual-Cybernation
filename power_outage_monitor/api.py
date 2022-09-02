@@ -17,6 +17,7 @@ from cisco.support import SimulatedSupportApi
 from cisco.meraki_api import MerakiOrgApi
 from netcloud import NetCloudApi
 from opsgenie import OpsgenieApi, OpsgenieRequest
+from opsgenie_sdk.exceptions import ConfigurationException
 from pysnow.exceptions import NoResults
 from snow import SnowApi
 
@@ -72,12 +73,12 @@ def authorize(key: str = Security(api_key)):
             detail='Invalid token')
 
 def _check_site_outage(site_name):
-    try:
-        logger.info('Gathering site details...')
-        site = SNOW_API.get_site_by_name(site_name)
-    except NoResults as e:
-        logger.error(str(e))
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'Could not find site {site_name}')
+    '''
+    Raises:
+        pysnow.exceptions.NoResults: when site cannot be found
+    '''
+    logger.info('Gathering site details...')
+    site = SNOW_API.get_site_by_name(site_name)
     if not site['longitude'] or not site['latitude']:
         address = ', '.join((site['street'], site['city'], site['state']))
         address = ' '.join((address, site['zip']))
@@ -85,20 +86,16 @@ def _check_site_outage(site_name):
         try:
             long, lat = geocode.get_long_lat(address)
         except (geocode.NoCandidateFound, geocode.LowScore) as e:
-            logger.error(str(e))
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        logger.info('Updating record on SNOW CMDB...')
-        site = SNOW_API.set_long_lat(site['sys_id'], long, lat)
+            logger.warning(f'Failed to geocode address so cannot check provider outage. Cause: {str(e)}.')
+        else:
+            logger.info('Updating record on SNOW CMDB...')
+            site = SNOW_API.set_long_lat(site['sys_id'], long, lat)
     logger.info('Found site ' + site_name + '. Getting power status...')
-    return checks.check_outage(site, PRTG_API, MERAKI_API, SNOW_API, NETCLOUD_API, SIM_CISCO_SUPPORT_API)
+    return checks.check_outage(site, PRTG_API, MERAKI_API, SNOW_API, NETCLOUD_API)
 
 def _check_warranty(name, site_name):
     filter = {'name': [name], 'location.name': [site_name]}
-    try:
-        ci = SNOW_API.get_cis_filtered_by(filter)[0]
-    except IndexError as e:
-        logger.error(str(e))
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    ci = SNOW_API.get_cis_filtered_by(filter)[0]
     logger.info(f'Found configuration item for {name} at {site_name}.')
     return checks.check_warranty(ci, SIM_CISCO_SUPPORT_API, SNOW_API)
 
@@ -118,10 +115,13 @@ def webhook_ops(opsgenie_req: OpsgenieRequest):
     device = opsgenie_req.alert.extra_properties.device
     alert_id = opsgenie_req.alert.id
     create_outage_incident = False
+    logger.info(f'Beginning data collection for site {site_name}.')
     try:
-        logger.info(f'Beginning data collection for site {site_name}.')
         # check warranty
         warranty_details = _check_warranty(device, site_name)
+    except IndexError:
+        logger.error('Unable to find configuration item. Cannot check warranty information.')
+    else:
         if warranty_details:
             logger.info('Creating expired warranty incident...')
             # create warranty incident
@@ -133,32 +133,34 @@ def webhook_ops(opsgenie_req: OpsgenieRequest):
                     ci=device)
         logger.info(f'Expired warranty incident created here: {SNOW_API.get_incident_link(incident["sys_id"])}.')
 
+    try:
         # check power outage
         details = _check_site_outage(site_name)
+    except NoResults as e:
+        logger.error(f'{str(e)}. Cannot check for power outages.')
+    else:
         # User input validity check
         details['PowerCheckValidation'] = ''
+        # merge outage details
+        extra_str = '\n'.join([': '.join((key,str(val))) for key, val in details.items()])
+        opsgenie_req.alert.description = '\n'.join(('Power Check Details', extra_str, '', 'Alert Details', opsgenie_req.alert.description))
         if details['Power_SitePower'] == 'Down':
             # add tag for site down
             logger.info('Adding outage tag to alert...')
-            add_tag_status_code = OPSGENIE_API.add_alert_tags(alert_id, ['SitePowerDown'], note=f'Automated action {opsgenie_req.action_name} detected site power is down. Tag has been added.')
-            if add_tag_status_code == 202:
-                logger.info(f'Successfully added tag to alert {alert_id}.')
-            else:
-                logger.error(f'Could not add tag to alert {alert_id}')
-            # merge outage details
-            extra_str = '\n'.join([': '.join((key,str(val))) for key, val in details.items()])
-            opsgenie_req.alert.description = '\n'.join(('Power Check Details', extra_str, '', 'Alert Details', opsgenie_req.alert.description))
+            try:
+                OPSGENIE_API.add_alert_tags(alert_id, ['SitePowerDown'], note=f'Automated action {opsgenie_req.action_name} detected site power is down. Tag has been added.')
+            except ConfigurationException as e:
+                logger.error(str(e))
             # set flag to create incident
             create_outage_incident = True
 
         # update alert with collected statuses
         note = f'Automated action {opsgenie_req.action_name} completed. Details of collected statuses have been added as extra properties.'
         logger.info('Adding collected status details to alert...')
-        post_details_status_code = OPSGENIE_API.add_alert_details(alert_id, details, note=note)
-        if post_details_status_code == 202:
-            logger.info(f'Successfully posted details to alert {alert_id}.')
-        else:
-            logger.error(f'Could not post details to alert {alert_id}')
+        try:
+            OPSGENIE_API.add_alert_details(alert_id, details, note=note)
+        except ConfigurationException as e:
+            logger.error(str(e))
     finally:
         ops_impact = int(opsgenie_req.alert.priority[1:]) - 1
         impact = OPS_TO_SNOW_SEVERITY[ops_impact]
@@ -172,11 +174,15 @@ def webhook_ops(opsgenie_req: OpsgenieRequest):
                     site_name)
             # notify power outage to external platform
             logger.info('Tweeting outage details...')
-            TWITTER_CLIENT.create_tweet(text=textwrap.dedent(f'''\
-                Start Date: {details['Power_StartDate']}
-                Type: {details['Power_OutageType']}
-                Cause: {details['Power_Cause']}
-                Estimated Restore Date: {details['Power_EstimatedRestoreDate']}'''))
+            try:
+                TWITTER_CLIENT.create_tweet(text=textwrap.dedent(f'''\
+                    OUTAGE DETECTED
+                    Start Date: {details['Power_StartDate']}
+                    Type: {details['Power_OutageType']}
+                    Cause: {details['Power_Cause']}
+                    Estimated Restore Date: {details['Power_EstimatedRestoreDate']}'''))
+            except tweepy.errors.Forbidden as e:
+                logger.error(str(e))          
         else:
             # forward opsgenie alert to snow incident
             incident = SNOW_API.create_incident(SNOW_COMPANY, SNOW_CALLER, SNOW_OPENED_BY,

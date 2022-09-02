@@ -14,7 +14,7 @@ class NetCloudApi:
         '''Returns the status of a given router name in NetCloud.
         '''
 
-        url = self.url + '/api/v2/routers'
+        url = self.url + '/routers'
         headers = self.auth
         params = {'name': name}
 

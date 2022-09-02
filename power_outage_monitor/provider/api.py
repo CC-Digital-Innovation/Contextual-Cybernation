@@ -80,9 +80,7 @@ def get_gis_power_status(site):
     if not statuses:
         return {"PowerStatus": "Active"}
     elif len(statuses) > 1:
-        logger.warning("More than one outage found.")
-        for outage in statuses:
-            logger.warning(json.dumps(outage, indent=4, sort_keys=True))
+        logger.warning("More than one outage found. Using the closest outage...")
 
     site_status = statuses[0]["attributes"]
     
@@ -109,5 +107,4 @@ def get_site_status(site, provider=None):
     }
     payload.update(get_gis_power_status(site))
     payload["Time"] = datetime.now(pytz.timezone(config["date-time"]["timezone"])).strftime(config["date-time"]["timeFormat"])
-    logger.debug(json.dumps(payload, indent=4, sort_keys=True))
     return payload

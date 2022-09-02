@@ -42,7 +42,7 @@ class MerakiOrgApi:
             raise ObjectNotFound(f"Cannot get device status with mac: {mac}")
 
     def get_device_status(self, serial):
-        response = self.db.organizations.getOrganizationDevicesStatuses(self.id, serials=serial)
+        response = self.db.organizations.getOrganizationDevicesStatuses(self.id, serials=[serial])
         try:
             if response[0]['status'] == 'offline' or response[0]['status'] == 'dormant':
                 return False

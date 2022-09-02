@@ -7,6 +7,7 @@ from requests.exceptions import HTTPError
 
 import provider
 from cisco.meraki_api.exceptions import ObjectNotFound
+from meraki.exceptions import APIError
 
 MERAKI_RE = re.compile('meraki', re.I)
 
@@ -30,7 +31,7 @@ def check_outage(site,
                 details['Power_ProviderStatus'] = 'Up'
             elif gis_response['PowerStatus'] == 'Inactive':
                 logger.info('Outage found near the site. Adding outage details...')
-                del details['PowerStatus']
+                del gis_response['PowerStatus']
                 # prefix keys
                 prefixed = {'Power_' + k: v for k, v in gis_response.items()}
                 details.update(prefixed)
@@ -47,60 +48,54 @@ def check_outage(site,
     pi_response = prtg_api.get_sensors_by_name('Ping', site['name'], 'PI - LTE')
     pi_is_up = None
     details['PRTG_PiStatus'] = ''
-    if 'sensors' in pi_response:
-        if len(pi_response['sensors']) == 1:
-            if 'status' in pi_response['sensors'][0]:
-                details['PRTG_PiStatus'] = pi_response['sensors'][0]['status']
-                if re.match('Up|Unusual|Warning',  details['PRTG_PiStatus']):
-                    logger.info('PI device is up.')
-                    pi_is_up = True
-                elif re.match('Down.*', details['PRTG_PiStatus']):
-                    logger.info('PI device is down.')
-                    pi_is_up = False
-                # else pi is Paused|Unknown
-            else:
-                logger.error('Could not parse pi sensor status.')
-        elif len(pi_response['sensors']) > 1:
-            logger.error('More than one pi sensor was found.')
+    if len(pi_response) == 1:
+        if 'status' in pi_response[0]:
+            details['PRTG_PiStatus'] = pi_response[0]['status']
+            if re.match('Up|Unusual|Warning',  details['PRTG_PiStatus']):
+                logger.info('PI device is up.')
+                pi_is_up = True
+            elif re.match('Down.*', details['PRTG_PiStatus']):
+                logger.info('PI device is down.')
+                pi_is_up = False
+            # else pi is Paused|Unknown
         else:
-            logger.error('Could not find pi sensor.')
+            logger.error('Could not parse pi sensor status.')
+    elif len(pi_response) > 1:
+        logger.error('More than one pi sensor was found.')
     else:
-        logger.error('Cannot parse pi sensors in payload.')
+        logger.error('Could not find pi sensor.')
 
     # get probe status
     logger.info('Checking status of Probe device...')
     probe_response = prtg_api.get_sensors_by_name('Probe Health', site['name'], 'Probe Device')
     probe_is_up = None
     details['PRTG_ProbeStatus'] = ''
-    if 'sensors' in probe_response:
-        if len(probe_response['sensors']) == 1:
-            if 'status' in probe_response['sensors'][0]:
-                details['PRTG_ProbeStatus'] = probe_response['sensors'][0]['status']
-                if re.match('Up|Unusual|Warning',  details['PRTG_ProbeStatus']):
-                    logger.info('Probe device is up.')
-                    probe_is_up = True
-                elif re.match('Down.*', details['PRTG_ProbeStatus']):
-                    logger.info('Probe device is down.')
-                    probe_is_up = False
-                # else pi is Paused|Unknown
-            else:
-                logger.error('Could not parse probe device status.')
-        elif len(probe_response['sensors']) > 1:
-            logger.error('More than one probe device was found.')
+    if len(probe_response) == 1:
+        if 'status' in probe_response[0]:
+            details['PRTG_ProbeStatus'] = probe_response[0]['status']
+            if re.match('Up|Unusual|Warning',  details['PRTG_ProbeStatus']):
+                logger.info('Probe device is up.')
+                probe_is_up = True
+            elif re.match('Down.*', details['PRTG_ProbeStatus']):
+                logger.info('Probe device is down.')
+                probe_is_up = False
+            # else pi is Paused|Unknown
         else:
-            logger.error('Could not find probe device.')
+            logger.error('Could not parse probe device status.')
+    elif len(probe_response) > 1:
+        logger.error('More than one probe device was found.')
     else:
-        logger.error('Cannot parse probe devices in payload.')
+        logger.error('Could not find probe device.')
 
     # get meraki device and status
     logger.info('Checking status of Meraki device...')
-    cis = snow_api.get_cis_filtered_by({'sys_class_name': 'cmdb_ci_wap_network'})
+    cis = snow_api.get_cis_filtered_by({'sys_class_name': ['cmdb_ci_wap_network'], 'location.name': [site['name']]})
     meraki_is_up = None
+    details['Cisco_MerakiStatus'] = ''
     try:
         ap = next(ci for ci in cis if MERAKI_RE.search(ci['name']))
     except StopIteration:
-        logger.error('Cannot find meraki device')
-        details['Cisco_MerakiStatus'] = ''
+        logger.error('Cannot find meraki device in CMDB.')
     else:
         try:
             if not ap['serial_number']:
@@ -111,7 +106,9 @@ def check_outage(site,
                 ap['serial_number'] = device['serial']
             meraki_is_up = meraki_api.get_device_status(ap['serial_number'])
         except ObjectNotFound:
-            details['Cisco_MerakiStatus'] = ''
+            logger.error('Cannot find device in Meraki.')
+        except APIError as e:
+            logger.error(str(e))
         else:
             if meraki_is_up:
                 logger.info('Meraki device is up.')
