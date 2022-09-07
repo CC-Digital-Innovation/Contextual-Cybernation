@@ -66,13 +66,29 @@ snow:
   instance: servicenow
   username: user
   password: mysecretpassword
-  # field values to filter all devices pulled from SNOW
-  filter:
-    install_status:
-      - '1'
-    sys_class_name:
-      - cmdb_ci_wap_network
+  company: Mycompany
+  caller: John Doe
+  opened_by: ADARCA
 meraki:
   api_key: mysecretkey
+  # optional
   org_id: 1234567890
+  # optional
   org_name: Meraki
+netcloud:
+  # base url, was used for simulated endpoint in demo
+  url: https://www.cradlepointecm.com/api/v2
+  cp_id: my-cp-api-id
+  cp_key: my-cp-api-key
+  ecm_id: my-ecm-api-id
+  ecm_key: my-ecm-api-key
+twitter:
+  conskey: mykey
+  conssec: mysecret
+  acctoken: mytoken
+  tokensec: mytokensecret
+cisco:
+  # base url, was used for simulated endpoint in demo
+  url: https://api.cisco.com
+  client_id: my-id
+  client_secret: my-secret
