@@ -1,35 +1,57 @@
 
 # Contextual Cybernation
 
-[![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/) 
-
-These python scripts use a series of API requests to check if a given address (USA) has an ongoing power outage or not. The data is parsed from a CSV or a JSON file. The script currently uses two open REST APIs, PGE and GIS to check for outage status. 
+ADARCA (API Driven Automated Root Cause Analysis) focuses on gathering, aggregating, correlation, and analyzing ecolgoical context. After analyzing the context, it assigns a root cause probability, uses this to make decisions, and automate appropriate actions.
 
 ## Table of Contents
 * [Getting Started](#getting-started)
-    * [Requirements](#requirements)
-    * [Installation](#installation)
-    * [Usage](#usage)
+    * [Locally](#locally)
+        * [Requirements](#requirements)
+        * [Installation](#installation)
+        * [Usage](#usage)
+    * [Docker](#docker)
+        * [Requirements](#requirements-1)
+        * [Installation](#installation-1)
+        * [Usage](#usage-1)
+* [TODO](#todo)
 * [Authors](#authors)
 * [History](#history)
 * [License](#license)
 
 ## Getting Started
 
-### Requirements
+The following instructions assume you have the following environment:
+
+Observability Tool: [PRTG](https://www.paessler.com/prtg)
+
+* Notifcation trigger with Execute HTTP (to PRTG integration in Opsgenie)
+
+Alerting Tool: [Opsgenie](https://www.atlassian.com/software/opsgenie)
+
+* PRTG integration setup
+* REST API integration
+* Action Channel and Action Rest HTTP to ADARCA
+
+ITSM: [ServiceNow](https://www.servicenow.com/)
+
+### Locally
+
+This is to get ADARCA up and running without Docker. Without a reverse proxy (or some other way for the Alerting Tool to communicate with ADARCA), this isn't very useful. There are some options, like Opsgenie's [OEC](https://support.atlassian.com/opsgenie/docs/opsgenie-edge-connector-as-an-extensibility-platform/) which provides a way to execute scripts behind a firewall. 
+
+#### Requirements
 
 * Python
-    * _Note: Developed using Python 3.8.7 64-bit, but was not tested with any other version._
+    * _Note: Developed using Python 3.9.5, but was not tested with any other version._
 
-### Installation
+#### Installation
 
 1. Download code from GitHub
 
     ```bash
-    git clone https://github.com/CC-Digital-Innovation/PowerOutageMonitor.git
+    git clone https://github.com/CC-Digital-Innovation/Contextual-Cybernation.git
     ```
 
-    * or download the zip: https://github.com/CC-Digital-Innovation/PowerOutageMonitor/archive/refs/heads/main.zip
+    * or download the zip: https://github.com/CC-Digital-Innovation/Contextual-Cybernation/archive/refs/heads/main.zip
 
 2. Create virtual environment
 
@@ -45,23 +67,80 @@ These python scripts use a series of API requests to check if a given address (U
 
     On Windows:
     ```powershell
-    example-env\Scripts\activate.bat
+    example-env\Scripts\Activate.ps1
     ```
-4. Install required modules
+
+4. Download required packages
 
     ```bash
     pip install -r requirements.txt
     ```
 
-### Usage
+#### Usage
 
-* The configuration file ([config.yaml](https://github.com/CC-Digital-Innovation/PowerOutageMonitor/blob/main/config.yaml)) can run as is. Make adjustments to the file as necessary.
-* The data files, site.csv and site.json must be changed to have real address and names for real-world application.
-* For customization, only need to edit the check_site.py file main() function. The default implementation shows different API calls and data parsing methods.
-* To run the script on a terminal to make appropriate changes, navigate to the directory and run the following command: -  
-   ``` bash
-   python3 check_site.py
+* Open or copy the configuration file `config.yaml.exmaple`. Make adjustments to the file as necessary and rename to `config.yaml`.
+* For the purposes of a demo, a simulated API was used. Switch the `SimulatedSupportApi`:
+    ```python
+    from cisco.support import SupportApi
+    # from cisco.support import SimulatedSupportApi
+    ...
+    # SIM_CISCO_SUPPORT_API = SimulatedSupportApi()
+    SIM_CISCO_SUPPORT_API = SupportApi(client_id, client_secret)
     ```
+
+* Start ADARCA:
+   ``` bash
+   python3 main.py
+    ```
+
+### Docker
+
+#### Requirements
+
+* Docker
+    *  _Note: Developed using version 20.10.8_
+* docker-compose
+    * _Note: Developed using version 1.29.2_
+
+#### Installation
+
+1. Download code from GitHub
+
+    ```bash
+    git clone https://github.com/CC-Digital-Innovation/Contextual-Cybernation.git
+    ```
+
+    * or download the zip: https://github.com/CC-Digital-Innovation/Contextual-Cybernation/archive/refs/heads/main.zip
+
+#### Usage
+
+* Open or copy the configuration file `config.yaml.exmaple`. Make adjustments to the file as necessary and rename to `config.yaml`.
+* For the purposes of a demo, a simulated API was used. Switch the `SimulatedSupportApi`:
+    ```python
+    from cisco.support import SupportApi
+    # from cisco.support import SimulatedSupportApi
+    ...
+    # SIM_CISCO_SUPPORT_API = SimulatedSupportApi()
+    SIM_CISCO_SUPPORT_API = SupportApi(client_id, client_secret)
+    ```
+* This compose file takes advantage of [Caddy as a reverse proxy](https://github.com/lucaslorentz/caddy-docker-proxy). Follow the basic usage to setup the network and container.
+*   Edit the hostname (if setup) inside `docker-compose.yml`
+    ```bash
+    ...
+    labels:
+      caddy: power-api.quokka.ninja
+    ...
+    ```
+* Run ADARCA
+    ```bash
+    docker-compose up -d --build
+    ```
+
+## TODO
+
+* Change geocoding API to [Nominatim](https://nominatim.org/release-docs/develop/api/Overview/)
+* Move to Kubernetes cluster
+* Support other APIs for data collection
 
 ## Authors
 * Jonny Le <<jonny.le@computacenter.com>>

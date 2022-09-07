@@ -137,8 +137,8 @@ dmypy.json
 # VSCode
 **/.vscode
 
-# ignore sqlite db
-**/sites/site.db
+# CodeTour
+.tours
 
 # ignore unencrypted file
 **/config.yml
