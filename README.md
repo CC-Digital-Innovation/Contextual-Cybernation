@@ -138,6 +138,8 @@ This is to get ADARCA up and running without Docker. Without a reverse proxy (or
 
 ## TODO
 
+* Abstract each 'check' as an action for better extensibility and writability.
+* Correlate incoming alerts with a proper list of 'checks'.
 * Change geocoding API to [Nominatim](https://nominatim.org/release-docs/develop/api/Overview/)
 * Move to Kubernetes cluster
 * Support other APIs for data collection
